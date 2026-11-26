@@ -1,3 +1,4 @@
+
 {
   "name": "game-control-center",
   "version-string": "0.3.0",
@@ -5,7 +6,10 @@
   "dependencies": [
     {
       "name": "qtbase",
-      "features": ["widgets"],
+      "features": [
+        "widgets",
+        "windeployqt"
+      ],
       "default-features": false
     }
   ]
