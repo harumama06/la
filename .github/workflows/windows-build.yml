@@ -1,1 +1,88 @@
+name: Game Control Center Windows Build
 
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout vcpkg (full history for baseline)
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/vcpkg
+          path: vcpkg
+          fetch-depth: 0
+
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: |
+          .\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+          "VCPKG_ROOT=$env:GITHUB_WORKSPACE\vcpkg" | Out-File $env:GITHUB_ENV -Append
+          "VCPKG_DEFAULT_BINARY_CACHE=$env:GITHUB_WORKSPACE\vcpkg\binarycache" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Cache vcpkg compiled packages
+        uses: actions/cache@v4
+        with:
+          path: vcpkg/binarycache
+          key: vcpkg-binary-${{ runner.os }}-${{ hashFiles('GameControlCenter_v0.3_Source/GameControlCenter/vcpkg.json') }}
+          restore-keys: |
+            vcpkg-binary-${{ runner.os }}-
+
+      - name: Verify source and manifest
+        shell: pwsh
+        run: |
+          $project = Join-Path $env:GITHUB_WORKSPACE "GameControlCenter_v0.3_Source\GameControlCenter"
+          if (-not (Test-Path (Join-Path $project "CMakeLists.txt"))) { throw "CMakeLists.txt missing: $project" }
+          if (-not (Test-Path (Join-Path $project "vcpkg.json"))) { throw "vcpkg.json missing: $project" }
+          Write-Host "Project root: $project"
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          $project = Join-Path $env:GITHUB_WORKSPACE "GameControlCenter_v0.3_Source\GameControlCenter"
+          cmake -S $project -B build -G "Visual Studio 17 2022" -A x64 `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DVCPKG_MANIFEST_MODE=ON `
+            -DVCPKG_MANIFEST_INSTALL=ON `
+            "-DVCPKG_INSTALLED_DIR=$env:GITHUB_WORKSPACE/build/vcpkg_installed"
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure / vcpkg install failed" }
+
+      - name: Build Release x64
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --target GameControlCenter --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw "C++ build failed" }
+          if (-not (Test-Path "build/Release/GameControlCenter.exe")) { throw "EXE was not produced" }
+
+      - name: Deploy Qt runtime and package
+        shell: pwsh
+        run: |
+          $installed = "$env:GITHUB_WORKSPACE/build/vcpkg_installed/x64-windows"
+          $package = "$env:GITHUB_WORKSPACE/GameControlCenter-portable"
+          New-Item -ItemType Directory -Force $package | Out-Null
+          Copy-Item "build/Release/GameControlCenter.exe" $package
+          $deploy = Get-ChildItem "$installed/tools" -Filter windeployqt.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $deploy) { throw "windeployqt.exe not found in vcpkg tools" }
+          & $deploy.FullName --release --compiler-runtime "$package/GameControlCenter.exe"
+          if ($LASTEXITCODE -ne 0) { throw "windeployqt failed" }
+          if (-not (Test-Path "$package/platforms/qwindows.dll")) { throw "Qt platform plugin platforms/qwindows.dll missing" }
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "GameControlCenter_v0.3_Source\GameControlCenter\README.md") "$package/README.txt"
+          Compress-Archive -Path "$package/*" -DestinationPath "$env:GITHUB_WORKSPACE/GameControlCenter-v0.3-Windows-x64.zip" -Force
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameControlCenter-v0.3-Windows-x64
+          path: GameControlCenter-v0.3-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14
