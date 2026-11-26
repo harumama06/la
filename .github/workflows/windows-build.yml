@@ -37,6 +37,14 @@ jobs:
           restore-keys: |
             vcpkg-binary-${{ runner.os }}-
 
+      - name: Prepare vcpkg binary cache directory
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          if (-not (Test-Path $env:VCPKG_DEFAULT_BINARY_CACHE -PathType Container)) {
+            throw "vcpkg binary cache directory was not created: $env:VCPKG_DEFAULT_BINARY_CACHE"
+          }
+
       - name: Verify source and manifest
         shell: pwsh
         run: |
