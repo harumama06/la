@@ -33,14 +33,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: vcpkg/binarycache
-          key: vcpkg-binary-${{ runner.os }}-${{ hashFiles('GameControlCenter_v0.3_Source/GameControlCenter/vcpkg.json') }}
+          key: vcpkg-binary-${{ runner.os }}-${{ hashFiles('GameControlCenter_v0.3_GitHub_Ready/GameControlCenter_v0.3_Source/GameControlCenter/vcpkg.json') }}
           restore-keys: |
             vcpkg-binary-${{ runner.os }}-
 
       - name: Verify source and manifest
         shell: pwsh
         run: |
-          $project = Join-Path $env:GITHUB_WORKSPACE "GameControlCenter_v0.3_Source\GameControlCenter"
+          $project = Join-Path $env:GITHUB_WORKSPACE "GameControlCenter_v0.3_GitHub_Ready\GameControlCenter_v0.3_Source\GameControlCenter"
           if (-not (Test-Path (Join-Path $project "CMakeLists.txt"))) { throw "CMakeLists.txt missing: $project" }
           if (-not (Test-Path (Join-Path $project "vcpkg.json"))) { throw "vcpkg.json missing: $project" }
           Write-Host "Project root: $project"
@@ -48,7 +48,7 @@ jobs:
       - name: Configure CMake
         shell: pwsh
         run: |
-          $project = Join-Path $env:GITHUB_WORKSPACE "GameControlCenter_v0.3_Source\GameControlCenter"
+          $project = Join-Path $env:GITHUB_WORKSPACE "GameControlCenter_v0.3_GitHub_Ready\GameControlCenter_v0.3_Source\GameControlCenter"
           cmake -S $project -B build -G "Visual Studio 17 2022" -A x64 `
             "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows `
@@ -76,7 +76,7 @@ jobs:
           & $deploy.FullName --release --compiler-runtime "$package/GameControlCenter.exe"
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed" }
           if (-not (Test-Path "$package/platforms/qwindows.dll")) { throw "Qt platform plugin platforms/qwindows.dll missing" }
-          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "GameControlCenter_v0.3_Source\GameControlCenter\README.md") "$package/README.txt"
+          Copy-Item (Join-Path $env:GITHUB_WORKSPACE "GameControlCenter_v0.3_GitHub_Ready\GameControlCenter_v0.3_Source\GameControlCenter\README.md") "$package/README.txt"
           Compress-Archive -Path "$package/*" -DestinationPath "$env:GITHUB_WORKSPACE/GameControlCenter-v0.3-Windows-x64.zip" -Force
 
       - name: Upload portable ZIP
