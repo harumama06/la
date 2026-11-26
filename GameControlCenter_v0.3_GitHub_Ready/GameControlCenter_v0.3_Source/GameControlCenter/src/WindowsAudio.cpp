@@ -41,7 +41,7 @@ private: HRESULT hr_;
 };
 IMMDeviceEnumerator* createEnumerator() {
     IMMDeviceEnumerator* e = nullptr;
-    if (FAILED(CoCreateInstance(CLSID_MMDeviceEnumerator, nullptr, CLSCTX_ALL,
+    if (FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
                                __uuidof(IMMDeviceEnumerator), reinterpret_cast<void**>(&e)))) return nullptr;
     return e;
 }
